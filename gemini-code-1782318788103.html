@@ -63,7 +63,7 @@
         <div class="cart-title">선택된 발주 목록</div>
         <div class="cart-list" id="cartList"></div>
         <div class="action-buttons">
-            <button class="btn-action btn-kakao" onclick="sendKakaoMessage()">💬 카카오톡으로 발주 보내기</button>
+            <button class="btn-action btn-kakao" onclick="sendKakaoMessage()">💬 발주 내역 복사하기</button>
             <button class="btn-action btn-clear" onclick="clearCart()">선택 전체 취소 (비우기)</button>
         </div>
     </div>
@@ -226,16 +226,10 @@
             });
             messageText += "\n확인 후 준비 부탁드립니다.";
 
-            // Kakao 객체가 로드되지 않았을 때의 방어 로직
-            if (typeof Kakao === 'undefined' || !Kakao.isInitialized()) {
-                alert("카카오톡 스크립트가 로드되지 않았습니다.\n광고 차단 프로그램(AdBlock 등)이 켜져있다면 끄고 새로고침 해주세요!");
-                return;
-            }
-
-            Kakao.Share.sendDefault({
-                objectType: 'text',
-                text: messageText,
-                link: { mobileWebUrl: window.location.href, webUrl: window.location.href },
+            navigator.clipboard.writeText(messageText).then(() => {
+                alert("발주 내용이 복사되었습니다!\n카카오톡에 붙여넣기 해주세요.");
+            }).catch(() => {
+                alert("복사 실패. 다시 시도해주세요.");
             });
         }
 
