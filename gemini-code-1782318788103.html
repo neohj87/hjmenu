@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>엄마 맞춤형 식자재 발주 대시보드</title>
-    
-    <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
-    
     <style>
         * { box-sizing: border-box; font-family: 'Malgun Gothic', sans-serif; }
         body { margin: 0; padding: 20px; background-color: #f0f4f8; display: flex; gap: 20px; height: 100vh; overflow: hidden; }
@@ -22,16 +19,18 @@
 
         .column-title { font-size: 22px; font-weight: bold; color: #333; margin-bottom: 15px; text-align: center; padding-bottom: 5px; border-bottom: 1px solid #eee; }
         
-        .inline-add-form { display: flex; gap: 5px; margin-bottom: 15px; }
-        .inline-add-form input { flex: 1; padding: 10px; font-size: 15px; border: 1px solid #cbd5e1; border-radius: 6px; }
+        .inline-add-form { display: flex; gap: 5px; margin-bottom: 15px; flex-wrap: wrap; }
+        .inline-add-form input[type="text"] { flex: 1; min-width: 80px; padding: 10px; font-size: 15px; border: 1px solid #cbd5e1; border-radius: 6px; }
+        .inline-add-form select { padding: 10px 6px; font-size: 14px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; cursor: pointer; }
         .btn-inline-add { background: #4a90e2; color: white; border: none; padding: 0 12px; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 18px; }
 
         .card-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 5px; }
         
-        .item-card { background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 15px; font-size: 18px; font-weight: bold; text-align: center; cursor: pointer; position: relative; transition: all 0.2s; user-select: none; }
+        .item-card { background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 12px 15px; font-size: 16px; font-weight: bold; text-align: center; cursor: pointer; position: relative; transition: all 0.2s; user-select: none; }
         .item-card:hover { border-color: #4a90e2; background: #eef6ff; }
         .item-card.is-selected { background: #eef6ff; border-color: #4a90e2; color: #4a90e2; }
         .item-card.is-selected::after { content: "✓"; position: absolute; top: 5px; left: 10px; font-size: 16px; font-weight: bold; }
+        .item-card-unit { font-size: 12px; color: #888; font-weight: normal; margin-top: 3px; }
 
         .btn-card-del { position: absolute; top: 3px; right: 6px; background: none; border: none; color: #ccc; cursor: pointer; font-size: 14px; }
         .btn-card-del:hover { color: #e53e3e; }
@@ -41,7 +40,8 @@
         .cart-list { flex: 1; overflow-y: auto; margin-top: 15px; border: 1px solid #edf2f7; border-radius: 6px; padding: 10px; background: #fafafa; }
         
         .cart-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px; border-bottom: 1px solid #e2e8f0; background: white; margin-bottom: 8px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .cart-item-name { font-size: 18px; font-weight: bold; color: #2d3748; flex: 1; }
+        .cart-item-name { font-size: 16px; font-weight: bold; color: #2d3748; flex: 1; }
+        .cart-item-unit { font-size: 12px; color: #888; font-weight: normal; }
         
         .cart-counter { display: flex; align-items: center; gap: 8px; margin-right: 10px; }
         .btn-cart-count { width: 32px; height: 32px; font-size: 18px; font-weight: bold; border: none; background: #edf2f7; border-radius: 4px; cursor: pointer; }
@@ -51,7 +51,7 @@
         
         .action-buttons { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
         .btn-action { width: 100%; padding: 15px; font-size: 20px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
-        .btn-kakao { background-color: #FEE500; color: #191919; }
+        .btn-copy { background-color: #FEE500; color: #191919; }
         .btn-clear { background-color: #a0aec0; color: white; font-size: 16px; padding: 10px; }
     </style>
 </head>
@@ -63,23 +63,16 @@
         <div class="cart-title">선택된 발주 목록</div>
         <div class="cart-list" id="cartList"></div>
         <div class="action-buttons">
-            <button class="btn-action btn-kakao" onclick="sendKakaoMessage()">💬 발주 내역 복사하기</button>
+            <button class="btn-action btn-copy" onclick="copyOrder()">📋 발주 내용 복사하기</button>
             <button class="btn-action btn-clear" onclick="clearCart()">선택 전체 취소 (비우기)</button>
         </div>
     </div>
 
     <script>
-        try {
-            if (!Kakao.isInitialized()) {
-                Kakao.init('1366bbf978d9f9e66ff6459489f8c97d'); 
-            }
-        } catch (error) {
-            console.error("카카오 연동 에러가 발생했지만 화면은 정상 작동합니다:", error);
-        }
-
         const categories = ["농산물", "수산물", "육류", "가공품", "기타"];
-        
-        let productData = JSON.parse(localStorage.getItem('momColumnsProducts')) || {
+        const unitOptions = ["개", "kg", "박스", "통", "마리", "묶음", "병", "포"];
+
+        let productData = JSON.parse(localStorage.getItem('momColumnsProducts_v2')) || {
             "농산물": [], "수산물": [], "육류": [], "가공품": [], "기타": []
         };
 
@@ -92,11 +85,14 @@
             categories.forEach(category => {
                 const column = document.createElement('div');
                 column.className = 'category-column';
+
+                const unitSelectHtml = unitOptions.map(u => `<option value="${u}">${u}</option>`).join('');
                 
                 let html = `
                     <div class="column-title">${category}</div>
                     <div class="inline-add-form">
-                        <input type="text" id="input-${category}" placeholder="새 품목 이름..." onkeypress="if(event.keyCode==13) addItem('${category}')">
+                        <input type="text" id="input-${category}" placeholder="품목 이름..." onkeypress="if(event.keyCode==13) addItem('${category}')">
+                        <select id="unit-${category}">${unitSelectHtml}</select>
                         <button class="btn-inline-add" onclick="addItem('${category}')">+</button>
                     </div>
                     <div class="card-list">
@@ -104,11 +100,12 @@
 
                 const items = productData[category] || [];
                 items.forEach(item => {
-                    const isSelected = orderCart[item] ? 'is-selected' : '';
+                    const isSelected = orderCart[item.name] ? 'is-selected' : '';
                     html += `
-                        <div class="item-card ${isSelected}" onclick="clickProductCard('${item}')">
-                            <button class="btn-card-del" onclick="deleteProductCard(event, '${category}', '${item}')" title="삭제">×</button>
-                            ${item}
+                        <div class="item-card ${isSelected}" onclick="clickProductCard('${item.name}', '${item.unit}')">
+                            <button class="btn-card-del" onclick="deleteProductCard(event, '${category}', '${item.name}')" title="삭제">×</button>
+                            ${item.name}
+                            <div class="item-card-unit">${item.unit}</div>
                         </div>
                     `;
                 });
@@ -123,13 +120,15 @@
 
         function addItem(category) {
             const inputElement = document.getElementById(`input-${category}`);
+            const unitElement = document.getElementById(`unit-${category}`);
             const itemName = inputElement.value.trim();
+            const itemUnit = unitElement.value;
 
             if (!itemName) return;
 
             let isDuplicate = false;
             categories.forEach(cat => {
-                if (productData[cat].includes(itemName)) isDuplicate = true;
+                if ((productData[cat] || []).some(i => i.name === itemName)) isDuplicate = true;
             });
 
             if (isDuplicate) {
@@ -137,72 +136,73 @@
                 return;
             }
 
-            productData[category].push(itemName);
-            localStorage.setItem('momColumnsProducts', JSON.stringify(productData));
+            productData[category].push({ name: itemName, unit: itemUnit });
+            localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
             
             inputElement.value = '';
             renderDashboard();
             inputElement.focus();
         }
 
-        function deleteProductCard(event, category, item) {
+        function deleteProductCard(event, category, itemName) {
             event.stopPropagation();
-            if (confirm(`'${item}' 카드를 완전히 삭제하시겠습니까?`)) {
-                productData[category] = productData[category].filter(p => p !== item);
-                localStorage.setItem('momColumnsProducts', JSON.stringify(productData));
+            if (confirm(`'${itemName}' 카드를 완전히 삭제하시겠습니까?`)) {
+                productData[category] = productData[category].filter(i => i.name !== itemName);
+                localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
                 
-                if (orderCart[item]) delete orderCart[item];
+                if (orderCart[itemName]) delete orderCart[itemName];
                 renderDashboard();
             }
         }
 
-        function clickProductCard(item) {
-            if (orderCart[item]) {
-                delete orderCart[item];
+        function clickProductCard(itemName, itemUnit) {
+            if (orderCart[itemName]) {
+                delete orderCart[itemName];
             } else {
-                orderCart[item] = 1;
+                orderCart[itemName] = { count: 1, unit: itemUnit };
             }
             renderDashboard();
         }
 
-        function changeCartCount(item, amount) {
-            if (!orderCart[item]) return;
-            orderCart[item] += amount;
+        function changeCartCount(itemName, amount) {
+            if (!orderCart[itemName]) return;
+            orderCart[itemName].count += amount;
 
-            if (orderCart[item] <= 0) {
-                delete orderCart[item];
+            if (orderCart[itemName].count <= 0) {
+                delete orderCart[itemName];
             }
             renderDashboard();
         }
 
-        function removeTargetItem(item) {
-            delete orderCart[item];
+        function removeTargetItem(itemName) {
+            delete orderCart[itemName];
             renderDashboard();
         }
 
         function renderCartUI() {
-            const cartListHtml = document.getElementById('cartList');
-            cartListHtml.innerHTML = '';
+            const cartListEl = document.getElementById('cartList');
+            cartListEl.innerHTML = '';
 
             const keys = Object.keys(orderCart);
             if (keys.length === 0) {
-                cartListHtml.innerHTML = '<div style="color:#999; text-align:center; margin-top:40px; font-size:16px;">좌측 카드를 클릭하면<br>여기에 목록이 추가됩니다.</div>';
+                cartListEl.innerHTML = '<div style="color:#999; text-align:center; margin-top:40px; font-size:16px;">좌측 카드를 클릭하면<br>여기에 목록이 추가됩니다.</div>';
                 return;
             }
 
-            keys.forEach(item => {
+            keys.forEach(itemName => {
+                const { count, unit } = orderCart[itemName];
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'cart-item';
                 itemDiv.innerHTML = `
-                    <div class="cart-item-name">${item}</div>
+                    <div class="cart-item-name">${itemName}<br><span class="cart-item-unit">${unit}</span></div>
                     <div class="cart-counter">
-                        <button class="btn-cart-count" onclick="changeCartCount('${item}', -1)">-</button>
-                        <span class="cart-count-display">${orderCart[item]}</span>
-                        <button class="btn-cart-count" onclick="changeCartCount('${item}', 1)">+</button>
+                        <button class="btn-cart-count" onclick="changeCartCount('${itemName}', -1)">-</button>
+                        <span class="cart-count-display">${count}</span>
+                        <button class="btn-cart-count" onclick="changeCartCount('${itemName}', 1)">+</button>
                     </div>
-                    <button class="btn-delete" onclick="removeTargetItem('${item}')">취소</button>
+                    <button class="btn-delete" onclick="removeTargetItem('${itemName}')">취소</button>
                 `;
-                cartListHtml.appendChild(itemDiv);
+                cartListEl.appendChild(itemDiv);
             });
         }
 
@@ -213,7 +213,7 @@
             }
         }
 
-        function sendKakaoMessage() {
+        function copyOrder() {
             const keys = Object.keys(orderCart);
             if (keys.length === 0) {
                 alert("발주할 상품 카드를 먼저 클릭해 주세요.");
@@ -221,8 +221,9 @@
             }
 
             let messageText = "[식자재 발주 요청]\n\n";
-            keys.forEach(item => {
-                messageText += `• ${item}: ${orderCart[item]}개\n`;
+            keys.forEach(itemName => {
+                const { count, unit } = orderCart[itemName];
+                messageText += `• ${itemName}: ${count}${unit}\n`;
             });
             messageText += "\n확인 후 준비 부탁드립니다.";
 
