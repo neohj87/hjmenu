@@ -70,7 +70,7 @@
 
     <script>
         const categories = ["농산물", "수산물", "육류", "가공품", "기타"];
-        const unitOptions = ["개", "kg", "박스", "통", "마리", "묶음", "병", "포대", "봉지", "팩", "패트", "단", "판", "캔"];
+        const unitOptions = ["개", "kg", "g", "만원", "박스", "통", "마리", "묶음", "병", "포대", "봉지", "팩", "패트", "단", "판", "캔", "망"];
 
         let productData = JSON.parse(localStorage.getItem('momColumnsProducts_v2')) || {
             "농산물": [], "수산물": [], "육류": [], "가공품": [], "기타": []
@@ -220,12 +220,12 @@
                 return;
             }
 
-            let messageText = "[식자재 발주 요청]\n\n";
+            let messageText = "[식자재 발주 요청 드립니다.]\n\n";
             keys.forEach(itemName => {
                 const { count, unit } = orderCart[itemName];
                 messageText += `• ${itemName}: ${count}${unit}\n`;
             });
-            messageText += "\n확인 후 준비 부탁드립니다.";
+            messageText += "\n확인 후 배송 부탁드립니다. 감사합니다.";
 
             navigator.clipboard.writeText(messageText).then(() => {
                 alert("발주 내용이 복사되었습니다!\n카카오톡에 붙여넣기 해주세요.");
