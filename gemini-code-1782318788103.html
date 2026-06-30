@@ -1,260 +1,240 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>엄마 맞춤형 식자재 발주 대시보드</title>
-    <style>
-        * { box-sizing: border-box; font-family: 'Malgun Gothic', sans-serif; }
-        body { margin: 0; padding: 20px; background-color: #f0f4f8; display: flex; gap: 20px; height: 100vh; overflow: hidden; }
-        
-        .dashboard-container { flex: 3.5; display: flex; gap: 15px; height: 100%; overflow-x: auto; }
-        
-        .category-column { flex: 1; min-width: 160px; background: white; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 6px solid #4a90e2; }
-        .category-column:nth-child(1) { border-top-color: #2ecc71; }
-        .category-column:nth-child(2) { border-top-color: #3498db; }
-        .category-column:nth-child(3) { border-top-color: #e74c3c; }
-        .category-column:nth-child(4) { border-top-color: #f1c40f; }
-        .category-column:nth-child(5) { border-top-color: #9b59b6; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>엄마 맞춤형 식자재 발주 대시보드</title>
+<style>
+* { box-sizing: border-box; font-family: 'Malgun Gothic', sans-serif; }
+body { margin: 0; padding: 20px; background-color: #f0f4f8; display: flex; gap: 20px; height: 100vh; overflow: hidden; }
 
-        .column-title { font-size: clamp(16px, 1.4vw, 22px); font-weight: bold; color: #333; margin-bottom: 10px; text-align: center; padding-bottom: 5px; border-bottom: 1px solid #eee; }
-        
-        .inline-add-form { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
-        .inline-add-form input[type="text"] { flex: 1; min-width: 60px; padding: clamp(6px, 0.7vw, 10px); font-size: clamp(12px, 1vw, 15px); border: 1px solid #cbd5e1; border-radius: 6px; }
-        .inline-add-form select { padding: clamp(6px, 0.7vw, 10px) 4px; font-size: clamp(11px, 0.9vw, 14px); border: 1px solid #cbd5e1; border-radius: 6px; background: white; cursor: pointer; max-width: 52px; }
-        .btn-inline-add { background: #4a90e2; color: white; border: none; padding: 0 10px; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: clamp(14px, 1.2vw, 18px); }
+.dashboard-container { flex: 3.5; display: flex; gap: 15px; height: 100%; overflow-x: auto; }
 
-        .card-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
-        
-        .item-card { background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: clamp(8px, 0.8vw, 12px) 10px; font-size: clamp(13px, 1.1vw, 16px); font-weight: bold; text-align: center; cursor: pointer; position: relative; transition: all 0.2s; user-select: none; }
-        .item-card:hover { border-color: #4a90e2; background: #eef6ff; }
-        .item-card.is-selected { background: #eef6ff; border-color: #4a90e2; color: #4a90e2; }
-        .item-card.is-selected::after { content: "✓"; position: absolute; top: 4px; left: 8px; font-size: 14px; font-weight: bold; }
-        .item-card-unit { font-size: clamp(10px, 0.8vw, 12px); color: #888; font-weight: normal; margin-top: 2px; }
+.category-column { flex: 1; min-width: 160px; background: white; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 6px solid #4a90e2; }
+.category-column:nth-child(1) { border-top-color: #2ecc71; }
+.category-column:nth-child(2) { border-top-color: #3498db; }
+.category-column:nth-child(3) { border-top-color: #e74c3c; }
+.category-column:nth-child(4) { border-top-color: #f1c40f; }
+.category-column:nth-child(5) { border-top-color: #9b59b6; }
 
-        .btn-card-del { position: absolute; top: 3px; right: 5px; background: none; border: none; color: #ccc; cursor: pointer; font-size: 13px; }
-        .btn-card-del:hover { color: #e53e3e; }
+.column-title { font-size: clamp(16px, 1.4vw, 22px); font-weight: bold; color: #333; margin-bottom: 10px; text-align: center; padding-bottom: 5px; border-bottom: 1px solid #eee; }
 
-        .cart-container { flex: 0 0 clamp(240px, 22vw, 320px); background: white; padding: clamp(12px, 1.2vw, 20px); border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; height: 100%; }
-        .cart-title { margin-top: 0; color: #333; font-size: clamp(18px, 1.5vw, 24px); border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        .cart-list { flex: 1; overflow-y: auto; margin-top: 10px; border: 1px solid #edf2f7; border-radius: 6px; padding: 8px; background: #fafafa; }
-        
-        .cart-item { display: flex; justify-content: space-between; align-items: center; padding: clamp(8px, 0.8vw, 12px) 6px; border-bottom: 1px solid #e2e8f0; background: white; margin-bottom: 6px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .cart-item-name { font-size: clamp(13px, 1vw, 16px); font-weight: bold; color: #2d3748; flex: 1; }
-        .cart-item-unit { font-size: clamp(10px, 0.8vw, 12px); color: #888; font-weight: normal; }
-        
-        .cart-counter { display: flex; align-items: center; gap: 5px; margin-right: 6px; }
-        .btn-cart-count { width: clamp(26px, 2vw, 32px); height: clamp(26px, 2vw, 32px); font-size: clamp(14px, 1.2vw, 18px); font-weight: bold; border: none; background: #edf2f7; border-radius: 4px; cursor: pointer; }
-        .cart-count-display { font-size: clamp(14px, 1.2vw, 18px); font-weight: bold; min-width: 20px; text-align: center; }
+.inline-add-form { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+.inline-add-form input[type="text"] { flex: 1; min-width: 60px; padding: clamp(6px, 0.7vw, 10px); font-size: clamp(12px, 1vw, 15px); border: 1px solid #cbd5e1; border-radius: 6px; }
+.inline-add-form select { padding: clamp(6px, 0.7vw, 10px) 4px; font-size: clamp(11px, 0.9vw, 14px); border: 1px solid #cbd5e1; border-radius: 6px; background: white; cursor: pointer; max-width: 52px; }
+.btn-inline-add { background: #4a90e2; color: white; border: none; padding: 0 10px; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: clamp(14px, 1.2vw, 18px); }
 
-        .btn-delete { background: #ff4d4f; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-size: clamp(12px, 0.9vw, 14px); }
-        
-        .action-buttons { margin-top: 15px; display: flex; flex-direction: column; gap: 8px; }
-        .btn-action { width: 100%; padding: clamp(10px, 1vw, 15px); font-size: clamp(15px, 1.3vw, 20px); font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
-        .btn-copy { background-color: #FEE500; color: #191919; }
-        .btn-clear { background-color: #a0aec0; color: white; font-size: clamp(13px, 1vw, 16px); padding: clamp(8px, 0.8vw, 10px); }
-        
-        /* 추가된 검색창 스타일 */
-        .search-container { position: absolute; top: 20px; left: 20px; right: 20px; z-index: 10; text-align: left; }
-        .search-input { width: 100%; max-width: 400px; padding: 12px; font-size: 16px; border: 2px solid #4a90e2; border-radius: 8px; outline: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        
-        /* 검색창 공간 확보를 위해 바디와 컨테이너 여백 조정 */
-        body { padding-top: 80px; }
-    </style>
+.card-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
+
+.item-card { background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: clamp(8px, 0.8vw, 12px) 10px; font-size: clamp(13px, 1.1vw, 16px); font-weight: bold; text-align: center; cursor: pointer; position: relative; transition: all 0.2s; user-select: none; }
+.item-card:hover { border-color: #4a90e2; background: #eef6ff; }
+.item-card.is-selected { background: #eef6ff; border-color: #4a90e2; color: #4a90e2; }
+.item-card.is-selected::after { content: "✓"; position: absolute; top: 4px; left: 8px; font-size: 14px; font-weight: bold; }
+.item-card-unit { font-size: clamp(10px, 0.8vw, 12px); color: #888; font-weight: normal; margin-top: 2px; }
+
+.btn-card-del { position: absolute; top: 3px; right: 5px; background: none; border: none; color: #ccc; cursor: pointer; font-size: 13px; }
+.btn-card-del:hover { color: #e53e3e; }
+
+.cart-container { flex: 0 0 clamp(240px, 22vw, 320px); background: white; padding: clamp(12px, 1.2vw, 20px); border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; height: 100%; }
+.cart-title { margin-top: 0; color: #333; font-size: clamp(18px, 1.5vw, 24px); border-bottom: 2px solid #eee; padding-bottom: 10px; }
+.cart-list { flex: 1; overflow-y: auto; margin-top: 10px; border: 1px solid #edf2f7; border-radius: 6px; padding: 8px; background: #fafafa; }
+
+.cart-item { display: flex; justify-content: space-between; align-items: center; padding: clamp(8px, 0.8vw, 12px) 6px; border-bottom: 1px solid #e2e8f0; background: white; margin-bottom: 6px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+.cart-item-name { font-size: clamp(13px, 1vw, 16px); font-weight: bold; color: #2d3748; flex: 1; }
+.cart-item-unit { font-size: clamp(10px, 0.8vw, 12px); color: #888; font-weight: normal; }
+
+.cart-counter { display: flex; align-items: center; gap: 5px; margin-right: 6px; }
+.btn-cart-count { width: clamp(26px, 2vw, 32px); height: clamp(26px, 2vw, 32px); font-size: clamp(14px, 1.2vw, 18px); font-weight: bold; border: none; background: #edf2f7; border-radius: 4px; cursor: pointer; }
+.cart-count-display { font-size: clamp(14px, 1.2vw, 18px); font-weight: bold; min-width: 20px; text-align: center; }
+
+.btn-delete { background: #ff4d4f; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-size: clamp(12px, 0.9vw, 14px); }
+
+.action-buttons { margin-top: 15px; display: flex; flex-direction: column; gap: 8px; }
+.btn-action { width: 100%; padding: clamp(10px, 1vw, 15px); font-size: clamp(15px, 1.3vw, 20px); font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
+.btn-copy { background-color: #FEE500; color: #191919; }
+.btn-clear { background-color: #a0aec0; color: white; font-size: clamp(13px, 1vw, 16px); padding: clamp(8px, 0.8vw, 10px); }
+</style>
 </head>
 <body>
 
-    <div class="search-container">
-        <input type="text" id="searchInput" class="search-input" placeholder="🔍 품목을 검색해보세요 (예: 대파)" oninput="renderDashboard()">
-    </div>
+<div class="dashboard-container" id="columnsContainer"></div>
 
-    <div class="dashboard-container" id="columnsContainer"></div>
+<div class="cart-container">
+<div class="cart-title">선택된 발주 목록</div>
+<div class="cart-list" id="cartList"></div>
+<div class="action-buttons">
+<button class="btn-action btn-copy" onclick="copyOrder()">📋 발주 내용 복사하기</button>
+<button class="btn-action btn-clear" onclick="clearCart()">선택 전체 취소 (비우기)</button>
+</div>
+</div>
 
-    <div class="cart-container">
-        <div class="cart-title">선택된 발주 목록</div>
-        <div class="cart-list" id="cartList"></div>
-        <div class="action-buttons">
-            <button class="btn-action btn-copy" onclick="copyOrder()">📋 발주 내용 복사하기</button>
-            <button class="btn-action btn-clear" onclick="clearCart()">선택 전체 취소 (비우기)</button>
-        </div>
-    </div>
-
-    <script>
-        const categories = ["농산물", "수산물", "육류", "가공품", "기타"];
+<script>
+const categories = ["농산물", "수산물", "육류", "가공품", "기타"];
         const unitOptions = ["개", "kg", "g", "만원", "박스", "통", "마리", "묶음", "병", "포대", "봉지", "팩", "패트", "단", "판", "캔", "망", "리터"];
 
-        let productData = JSON.parse(localStorage.getItem('momColumnsProducts_v2')) || {
-            "농산물": [], "수산물": [], "육류": [], "가공품": [], "기타": []
-        };
+let productData = JSON.parse(localStorage.getItem('momColumnsProducts_v2')) || {
+"농산물": [], "수산물": [], "육류": [], "가공품": [], "기타": []
+};
 
-        let orderCart = {};
+let orderCart = {};
 
-        // 렌더링 함수 (검색 기능이 추가된 버전)
-        function renderDashboard() {
-            const container = document.getElementById('columnsContainer');
-            const keyword = document.getElementById('searchInput').value.trim();
-            container.innerHTML = '';
+function renderDashboard() {
+const container = document.getElementById('columnsContainer');
+container.innerHTML = '';
 
-            categories.forEach(category => {
-                // 검색어가 있을 경우 해당 카테고리에 포함된 것만 필터링
-                const items = (productData[category] || []).filter(item => 
-                    item.name.includes(keyword) || keyword === ""
-                );
-                
-                // 검색 중인데 결과가 없으면 해당 카테고리 컬럼을 숨김
-                if (keyword !== "" && items.length === 0) return;
+categories.forEach(category => {
+const column = document.createElement('div');
+column.className = 'category-column';
 
-                const column = document.createElement('div');
-                column.className = 'category-column';
+const unitSelectHtml = unitOptions.map(u => `<option value="${u}">${u}</option>`).join('');
 
-                const unitSelectHtml = unitOptions.map(u => `<option value="${u}">${u}</option>`).join('');
-                
-                let html = `
-                    <div class="column-title">${category}</div>
-                    <div class="inline-add-form">
-                        <input type="text" id="input-${category}" placeholder="품목 이름..." onkeypress="if(event.keyCode==13) addItem('${category}')">
-                        <select id="unit-${category}">${unitSelectHtml}</select>
-                        <button class="btn-inline-add" onclick="addItem('${category}')">+</button>
-                    </div>
-                    <div class="card-list">
-                `;
+let html = `
+                   <div class="column-title">${category}</div>
+                   <div class="inline-add-form">
+                       <input type="text" id="input-${category}" placeholder="품목 이름..." onkeypress="if(event.keyCode==13) addItem('${category}')">
+                       <select id="unit-${category}">${unitSelectHtml}</select>
+                       <button class="btn-inline-add" onclick="addItem('${category}')">+</button>
+                   </div>
+                   <div class="card-list">
+               `;
 
-                items.forEach(item => {
-                    const isSelected = orderCart[item.name] ? 'is-selected' : '';
-                    html += `
-                        <div class="item-card ${isSelected}" onclick="clickProductCard('${item.name}', '${item.unit}')">
-                            <button class="btn-card-del" onclick="deleteProductCard(event, '${category}', '${item.name}')" title="삭제">×</button>
-                            ${item.name}
-                            <div class="item-card-unit">${item.unit}</div>
-                        </div>
-                    `;
-                });
+const items = productData[category] || [];
+items.forEach(item => {
+const isSelected = orderCart[item.name] ? 'is-selected' : '';
+html += `
+                       <div class="item-card ${isSelected}" onclick="clickProductCard('${item.name}', '${item.unit}')">
+                           <button class="btn-card-del" onclick="deleteProductCard(event, '${category}', '${item.name}')" title="삭제">×</button>
+                           ${item.name}
+                           <div class="item-card-unit">${item.unit}</div>
+                       </div>
+                   `;
+});
 
-                html += `</div>`;
-                column.innerHTML = html;
-                container.appendChild(column);
-            });
+html += `</div>`;
+column.innerHTML = html;
+container.appendChild(column);
+});
 
-            renderCartUI();
-        }
+renderCartUI();
+}
 
-        function addItem(category) {
-            const inputElement = document.getElementById(`input-${category}`);
-            const unitElement = document.getElementById(`unit-${category}`);
-            const itemName = inputElement.value.trim();
-            const itemUnit = unitElement.value;
+function addItem(category) {
+const inputElement = document.getElementById(`input-${category}`);
+const unitElement = document.getElementById(`unit-${category}`);
+const itemName = inputElement.value.trim();
+const itemUnit = unitElement.value;
 
-            if (!itemName) return;
+if (!itemName) return;
 
-            let isDuplicate = false;
-            categories.forEach(cat => {
-                if ((productData[cat] || []).some(i => i.name === itemName)) isDuplicate = true;
-            });
+let isDuplicate = false;
+categories.forEach(cat => {
+if ((productData[cat] || []).some(i => i.name === itemName)) isDuplicate = true;
+});
 
-            if (isDuplicate) {
-                alert("이미 등록된 품목입니다.");
-                return;
-            }
+if (isDuplicate) {
+alert("이미 등록된 품목입니다.");
+return;
+}
 
-            productData[category].push({ name: itemName, unit: itemUnit });
-            localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
-            
-            inputElement.value = '';
-            renderDashboard();
-            inputElement.focus();
-        }
+productData[category].push({ name: itemName, unit: itemUnit });
+localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
 
-        function deleteProductCard(event, category, itemName) {
-            event.stopPropagation();
-            if (confirm(`'${itemName}' 카드를 완전히 삭제하시겠습니까?`)) {
-                productData[category] = productData[category].filter(i => i.name !== itemName);
-                localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
-                
-                if (orderCart[itemName]) delete orderCart[itemName];
-                renderDashboard();
-            }
-        }
+inputElement.value = '';
+renderDashboard();
+inputElement.focus();
+}
 
-        function clickProductCard(itemName, itemUnit) {
-            if (orderCart[itemName]) {
-                delete orderCart[itemName];
-            } else {
-                orderCart[itemName] = { count: 1, unit: itemUnit };
-            }
-            renderDashboard();
-        }
+function deleteProductCard(event, category, itemName) {
+event.stopPropagation();
+if (confirm(`'${itemName}' 카드를 완전히 삭제하시겠습니까?`)) {
+productData[category] = productData[category].filter(i => i.name !== itemName);
+localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
 
-        function changeCartCount(itemName, amount) {
-            if (!orderCart[itemName]) return;
-            orderCart[itemName].count += amount;
+if (orderCart[itemName]) delete orderCart[itemName];
+renderDashboard();
+}
+}
 
-            if (orderCart[itemName].count <= 0) {
-                delete orderCart[itemName];
-            }
-            renderDashboard();
-        }
+function clickProductCard(itemName, itemUnit) {
+if (orderCart[itemName]) {
+delete orderCart[itemName];
+} else {
+orderCart[itemName] = { count: 1, unit: itemUnit };
+}
+renderDashboard();
+}
 
-        function removeTargetItem(itemName) {
-            delete orderCart[itemName];
-            renderDashboard();
-        }
+function changeCartCount(itemName, amount) {
+if (!orderCart[itemName]) return;
+orderCart[itemName].count += amount;
 
-        function renderCartUI() {
-            const cartListEl = document.getElementById('cartList');
-            cartListEl.innerHTML = '';
+if (orderCart[itemName].count <= 0) {
+delete orderCart[itemName];
+}
+renderDashboard();
+}
 
-            const keys = Object.keys(orderCart);
-            if (keys.length === 0) {
-                cartListEl.innerHTML = '<div style="color:#999; text-align:center; margin-top:40px; font-size:16px;">좌측 카드를 클릭하면<br>여기에 목록이 추가됩니다.</div>';
-                return;
-            }
+function removeTargetItem(itemName) {
+delete orderCart[itemName];
+renderDashboard();
+}
 
-            keys.forEach(itemName => {
-                const { count, unit } = orderCart[itemName];
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'cart-item';
-                itemDiv.innerHTML = `
-                    <div class="cart-item-name">${itemName}<br><span class="cart-item-unit">${unit}</span></div>
-                    <div class="cart-counter">
-                        <button class="btn-cart-count" onclick="changeCartCount('${itemName}', -1)">-</button>
-                        <span class="cart-count-display">${count}</span>
-                        <button class="btn-cart-count" onclick="changeCartCount('${itemName}', 1)">+</button>
-                    </div>
-                    <button class="btn-delete" onclick="removeTargetItem('${itemName}')">취소</button>
-                `;
-                cartListEl.appendChild(itemDiv);
-            });
-        }
+function renderCartUI() {
+const cartListEl = document.getElementById('cartList');
+cartListEl.innerHTML = '';
 
-        function clearCart() {
-            if (confirm("현재 선택된 발주 목록을 모두 취소하시겠습니까?")) {
-                orderCart = {};
-                renderDashboard();
-            }
-        }
+const keys = Object.keys(orderCart);
+if (keys.length === 0) {
+cartListEl.innerHTML = '<div style="color:#999; text-align:center; margin-top:40px; font-size:16px;">좌측 카드를 클릭하면<br>여기에 목록이 추가됩니다.</div>';
+return;
+}
 
-        function copyOrder() {
-            const keys = Object.keys(orderCart);
-            if (keys.length === 0) {
-                alert("발주할 상품 카드를 먼저 클릭해 주세요.");
-                return;
-            }
+keys.forEach(itemName => {
+const { count, unit } = orderCart[itemName];
+const itemDiv = document.createElement('div');
+itemDiv.className = 'cart-item';
+itemDiv.innerHTML = `
+                   <div class="cart-item-name">${itemName}<br><span class="cart-item-unit">${unit}</span></div>
+                   <div class="cart-counter">
+                       <button class="btn-cart-count" onclick="changeCartCount('${itemName}', -1)">-</button>
+                       <span class="cart-count-display">${count}</span>
+                       <button class="btn-cart-count" onclick="changeCartCount('${itemName}', 1)">+</button>
+                   </div>
+                   <button class="btn-delete" onclick="removeTargetItem('${itemName}')">취소</button>
+               `;
+cartListEl.appendChild(itemDiv);
+});
+}
 
-            let messageText = "[식자재 발주 요청 드립니다.]\n\n";
-            keys.forEach(itemName => {
-                const { count, unit } = orderCart[itemName];
-                messageText += `• ${itemName}: ${count}${unit}\n`;
-            });
-            messageText += "\n확인 후 배송 부탁드립니다. 감사합니다.";
+function clearCart() {
+if (confirm("현재 선택된 발주 목록을 모두 취소하시겠습니까?")) {
+orderCart = {};
+renderDashboard();
+}
+}
 
-            navigator.clipboard.writeText(messageText).then(() => {
-                alert("발주 내용이 복사되었습니다!\n카카오톡에 붙여넣기 해주세요.");
-            }).catch(() => {
-                alert("복사 실패. 다시 시도해주세요.");
-            });
-        }
+function copyOrder() {
+const keys = Object.keys(orderCart);
+if (keys.length === 0) {
+alert("발주할 상품 카드를 먼저 클릭해 주세요.");
+return;
+}
 
-        window.onload = renderDashboard;
-    </script>
+let messageText = "[식자재 발주 요청 드립니다.]\n\n";
+keys.forEach(itemName => {
+const { count, unit } = orderCart[itemName];
+messageText += `• ${itemName}: ${count}${unit}\n`;
+});
+messageText += "\n확인 후 배송 부탁드립니다. 감사합니다.";
+
+navigator.clipboard.writeText(messageText).then(() => {
+alert("발주 내용이 복사되었습니다!\n카카오톡에 붙여넣기 해주세요.");
+}).catch(() => {
+alert("복사 실패. 다시 시도해주세요.");
+});
+}
+
+window.onload = renderDashboard;
+</script>
 </body>
 </html>
