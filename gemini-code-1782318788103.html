@@ -53,9 +53,68 @@
         .btn-action { width: 100%; padding: clamp(10px, 1vw, 15px); font-size: clamp(15px, 1.3vw, 20px); font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
         .btn-copy { background-color: #FEE500; color: #191919; }
         .btn-clear { background-color: #a0aec0; color: white; font-size: clamp(13px, 1vw, 16px); padding: clamp(8px, 0.8vw, 10px); }
+        .search-container { margin-bottom: 20px; text-align: center; }
+        .search-input { width: 100%; max-width: 400px; padding: 12px; font-size: 16px; border: 2px solid #4a90e2; border-radius: 25px; outline: none; }
     </style>
 </head>
 <body>
+    <div class="search-container">
+        <input type="text" id="searchInput" class="search-input" placeholder="🔍 품목을 검색해보세요 (예: 대파)" oninput="renderDashboard()">
+    </div>
+
+    <div class="dashboard-container" id="columnsContainer"></div>
+    <script>
+        // ... (기존 변수 및 함수 유지) ...
+
+        function renderDashboard() {
+            const container = document.getElementById('columnsContainer');
+            const keyword = document.getElementById('searchInput').value.trim();
+            container.innerHTML = '';
+
+            categories.forEach(category => {
+                // 검색어가 있을 경우 해당 카테고리에 포함된 것만 필터링
+                const items = (productData[category] || []).filter(item => 
+                    item.name.includes(keyword) || keyword === ""
+                );
+                
+                // 검색 중인데 결과가 없으면 컬럼을 보여주지 않거나 비워둠
+                if (keyword !== "" && items.length === 0) return;
+
+                const column = document.createElement('div');
+                column.className = 'category-column';
+                
+                // ... (이하 컬럼 HTML 생성 로직 동일) ...
+                // 주의: 내부 html 생성 시 items 변수를 사용하도록 수정됨
+                const unitSelectHtml = unitOptions.map(u => `<option value="${u}">${u}</option>`).join('');
+                
+                let html = `
+                    <div class="column-title">${category}</div>
+                    <div class="inline-add-form">
+                        <input type="text" id="input-${category}" placeholder="품목 이름..." onkeypress="if(event.keyCode==13) addItem('${category}')">
+                        <select id="unit-${category}">${unitSelectHtml}</select>
+                        <button class="btn-inline-add" onclick="addItem('${category}')">+</button>
+                    </div>
+                    <div class="card-list">
+                `;
+
+                items.forEach(item => {
+                    const isSelected = orderCart[item.name] ? 'is-selected' : '';
+                    html += `
+                        <div class="item-card ${isSelected}" onclick="clickProductCard('${item.name}', '${item.unit}')">
+                            <button class="btn-card-del" onclick="deleteProductCard(event, '${category}', '${item.name}')" title="삭제">×</button>
+                            ${item.name}
+                            <div class="item-card-unit">${item.unit}</div>
+                        </div>
+                    `;
+                });
+
+                html += `</div>`;
+                column.innerHTML = html;
+                container.appendChild(column);
+            });
+
+            renderCartUI();
+        }
 
     <div class="dashboard-container" id="columnsContainer"></div>
 
