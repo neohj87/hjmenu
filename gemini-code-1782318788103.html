@@ -6,7 +6,26 @@
 <title>엄마 맞춤형 식자재 발주 대시보드</title>
 <style>
 * { box-sizing: border-box; font-family: 'Malgun Gothic', sans-serif; }
-body { margin: 0; padding: 20px; background-color: #f0f4f8; display: flex; gap: 20px; height: 100vh; overflow: hidden; }
+body { margin: 0; padding: 20px; background-color: #f0f4f8; display: flex; flex-direction: column; gap: 12px; height: 100vh; overflow: hidden; }
+
+.search-bar-wrap { position: relative; width: 100%; flex-shrink: 0; }
+.search-bar-wrap input { width: 100%; padding: 12px 18px; font-size: clamp(14px, 1.1vw, 17px); border: 2px solid #cbd5e1; border-radius: 10px; outline: none; transition: border-color 0.2s; }
+.search-bar-wrap input:focus { border-color: #4a90e2; }
+.search-results { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1.5px solid #4a90e2; border-radius: 10px; margin-top: 4px; z-index: 100; box-shadow: 0 8px 24px rgba(0,0,0,0.12); max-height: 320px; overflow-y: auto; display: none; }
+.search-results.active { display: block; }
+.search-result-item { padding: 11px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f0f4f8; transition: background 0.15s; }
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item:hover { background: #eef6ff; }
+.search-result-item.already-selected { background: #eef6ff; }
+.search-result-name { font-size: clamp(14px, 1.1vw, 16px); font-weight: bold; color: #2d3748; }
+.search-result-name mark { background: #FEE500; border-radius: 3px; padding: 0 2px; font-style: normal; }
+.search-result-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.search-result-unit { font-size: clamp(11px, 0.9vw, 13px); color: #4a90e2; font-weight: bold; }
+.search-result-cat { font-size: clamp(10px, 0.8vw, 12px); color: #aaa; }
+.search-result-check { color: #4a90e2; font-size: 16px; margin-left: 8px; }
+.search-empty { padding: 18px 16px; color: #aaa; text-align: center; font-size: 14px; }
+
+.main-area { display: flex; gap: 20px; flex: 1; overflow: hidden; }
 
 .dashboard-container { flex: 3.5; display: flex; gap: 15px; height: 100%; overflow-x: auto; }
 
@@ -57,181 +76,238 @@ body { margin: 0; padding: 20px; background-color: #f0f4f8; display: flex; gap: 
 </head>
 <body>
 
-<div class="dashboard-container" id="columnsContainer"></div>
-
-<div class="cart-container">
-<div class="cart-title">선택된 발주 목록</div>
-<div class="cart-list" id="cartList"></div>
-<div class="action-buttons">
-<button class="btn-action btn-copy" onclick="copyOrder()">📋 발주 내용 복사하기</button>
-<button class="btn-action btn-clear" onclick="clearCart()">선택 전체 취소 (비우기)</button>
+<!-- 검색바 -->
+<div class="search-bar-wrap">
+  <input type="text" id="searchInput" placeholder="🔍 품목 검색... (한 글자만 입력해도 찾아줍니다)" oninput="onSearch()" onblur="hideSearchAfterDelay()" autocomplete="off">
+  <div class="search-results" id="searchResults"></div>
 </div>
+
+<!-- 메인 영역 -->
+<div class="main-area">
+  <div class="dashboard-container" id="columnsContainer"></div>
+
+  <div class="cart-container">
+    <div class="cart-title">선택된 발주 목록</div>
+    <div class="cart-list" id="cartList"></div>
+    <div class="action-buttons">
+      <button class="btn-action btn-copy" onclick="copyOrder()">📋 발주 내용 복사하기</button>
+      <button class="btn-action btn-clear" onclick="clearCart()">선택 전체 취소 (비우기)</button>
+    </div>
+  </div>
 </div>
 
 <script>
 const categories = ["농산물", "수산물", "육류", "가공품", "기타"];
-        const unitOptions = ["개", "kg", "g", "만원", "박스", "통", "마리", "묶음", "병", "포대", "봉지", "팩", "패트", "단", "판", "캔", "망", "리터"];
+const unitOptions = ["개", "kg", "g", "만원", "박스", "통", "마리", "묶음", "병", "포대", "봉지", "팩", "패트", "단", "판", "캔", "망", "리터"];
 
 let productData = JSON.parse(localStorage.getItem('momColumnsProducts_v2')) || {
-"농산물": [], "수산물": [], "육류": [], "가공품": [], "기타": []
+  "농산물": [], "수산물": [], "육류": [], "가공품": [], "기타": []
 };
 
 let orderCart = {};
 
+// ── 검색 ──────────────────────────────────────────
+function getAllItems() {
+  const all = [];
+  categories.forEach(cat => {
+    (productData[cat] || []).forEach(item => {
+      all.push({ name: item.name, unit: item.unit, category: cat });
+    });
+  });
+  return all;
+}
+
+function onSearch() {
+  const query = document.getElementById('searchInput').value.trim();
+  const resultsEl = document.getElementById('searchResults');
+
+  if (!query) { resultsEl.classList.remove('active'); return; }
+
+  const matched = getAllItems().filter(item => item.name.includes(query));
+  if (matched.length === 0) {
+    resultsEl.innerHTML = `<div class="search-empty">일치하는 품목이 없습니다.</div>`;
+    resultsEl.classList.add('active');
+    return;
+  }
+
+  resultsEl.innerHTML = matched.map(item => {
+    const highlighted = item.name.replace(query, `<mark>${query}</mark>`);
+    const alreadySel = orderCart[item.name] ? 'already-selected' : '';
+    const check = orderCart[item.name] ? '<span class="search-result-check">✓</span>' : '';
+    return `
+      <div class="search-result-item ${alreadySel}" onmousedown="selectFromSearch('${item.name}','${item.unit}')">
+        <div>
+          <div class="search-result-name">${highlighted}${check}</div>
+          <div class="search-result-cat">${item.category}</div>
+        </div>
+        <div class="search-result-meta">
+          <span class="search-result-unit">${item.unit}</span>
+        </div>
+      </div>`;
+  }).join('');
+  resultsEl.classList.add('active');
+}
+
+function selectFromSearch(itemName, itemUnit) {
+  if (orderCart[itemName]) {
+    delete orderCart[itemName];
+  } else {
+    orderCart[itemName] = { count: 1, unit: itemUnit };
+  }
+  renderDashboard();
+  onSearch(); // 검색 결과 체크 상태 갱신
+}
+
+function hideSearchAfterDelay() {
+  setTimeout(() => {
+    document.getElementById('searchResults').classList.remove('active');
+  }, 200);
+}
+
+// ── 대시보드 ───────────────────────────────────────
 function renderDashboard() {
-const container = document.getElementById('columnsContainer');
-container.innerHTML = '';
+  const container = document.getElementById('columnsContainer');
+  container.innerHTML = '';
 
-categories.forEach(category => {
-const column = document.createElement('div');
-column.className = 'category-column';
+  categories.forEach(category => {
+    const column = document.createElement('div');
+    column.className = 'category-column';
 
-const unitSelectHtml = unitOptions.map(u => `<option value="${u}">${u}</option>`).join('');
+    const unitSelectHtml = unitOptions.map(u => `<option value="${u}">${u}</option>`).join('');
 
-let html = `
-                   <div class="column-title">${category}</div>
-                   <div class="inline-add-form">
-                       <input type="text" id="input-${category}" placeholder="품목 이름..." onkeypress="if(event.keyCode==13) addItem('${category}')">
-                       <select id="unit-${category}">${unitSelectHtml}</select>
-                       <button class="btn-inline-add" onclick="addItem('${category}')">+</button>
-                   </div>
-                   <div class="card-list">
-               `;
+    let html = `
+      <div class="column-title">${category}</div>
+      <div class="inline-add-form">
+        <input type="text" id="input-${category}" placeholder="품목 이름..." onkeypress="if(event.keyCode==13) addItem('${category}')">
+        <select id="unit-${category}">${unitSelectHtml}</select>
+        <button class="btn-inline-add" onclick="addItem('${category}')">+</button>
+      </div>
+      <div class="card-list">
+    `;
 
-const items = productData[category] || [];
-items.forEach(item => {
-const isSelected = orderCart[item.name] ? 'is-selected' : '';
-html += `
-                       <div class="item-card ${isSelected}" onclick="clickProductCard('${item.name}', '${item.unit}')">
-                           <button class="btn-card-del" onclick="deleteProductCard(event, '${category}', '${item.name}')" title="삭제">×</button>
-                           ${item.name}
-                           <div class="item-card-unit">${item.unit}</div>
-                       </div>
-                   `;
-});
+    const items = productData[category] || [];
+    items.forEach(item => {
+      const isSelected = orderCart[item.name] ? 'is-selected' : '';
+      html += `
+        <div class="item-card ${isSelected}" onclick="clickProductCard('${item.name}', '${item.unit}')">
+          <button class="btn-card-del" onclick="deleteProductCard(event, '${category}', '${item.name}')" title="삭제">×</button>
+          ${item.name}
+          <div class="item-card-unit">${item.unit}</div>
+        </div>
+      `;
+    });
 
-html += `</div>`;
-column.innerHTML = html;
-container.appendChild(column);
-});
+    html += `</div>`;
+    column.innerHTML = html;
+    container.appendChild(column);
+  });
 
-renderCartUI();
+  renderCartUI();
 }
 
 function addItem(category) {
-const inputElement = document.getElementById(`input-${category}`);
-const unitElement = document.getElementById(`unit-${category}`);
-const itemName = inputElement.value.trim();
-const itemUnit = unitElement.value;
+  const inputElement = document.getElementById(`input-${category}`);
+  const unitElement = document.getElementById(`unit-${category}`);
+  const itemName = inputElement.value.trim();
+  const itemUnit = unitElement.value;
 
-if (!itemName) return;
+  if (!itemName) return;
 
-let isDuplicate = false;
-categories.forEach(cat => {
-if ((productData[cat] || []).some(i => i.name === itemName)) isDuplicate = true;
-});
+  let isDuplicate = false;
+  categories.forEach(cat => {
+    if ((productData[cat] || []).some(i => i.name === itemName)) isDuplicate = true;
+  });
 
-if (isDuplicate) {
-alert("이미 등록된 품목입니다.");
-return;
-}
+  if (isDuplicate) { alert("이미 등록된 품목입니다."); return; }
 
-productData[category].push({ name: itemName, unit: itemUnit });
-localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
-
-inputElement.value = '';
-renderDashboard();
-inputElement.focus();
+  productData[category].push({ name: itemName, unit: itemUnit });
+  localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
+  inputElement.value = '';
+  renderDashboard();
+  inputElement.focus();
 }
 
 function deleteProductCard(event, category, itemName) {
-event.stopPropagation();
-if (confirm(`'${itemName}' 카드를 완전히 삭제하시겠습니까?`)) {
-productData[category] = productData[category].filter(i => i.name !== itemName);
-localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
-
-if (orderCart[itemName]) delete orderCart[itemName];
-renderDashboard();
-}
+  event.stopPropagation();
+  if (confirm(`'${itemName}' 카드를 완전히 삭제하시겠습니까?`)) {
+    productData[category] = productData[category].filter(i => i.name !== itemName);
+    localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
+    if (orderCart[itemName]) delete orderCart[itemName];
+    renderDashboard();
+  }
 }
 
 function clickProductCard(itemName, itemUnit) {
-if (orderCart[itemName]) {
-delete orderCart[itemName];
-} else {
-orderCart[itemName] = { count: 1, unit: itemUnit };
-}
-renderDashboard();
+  if (orderCart[itemName]) {
+    delete orderCart[itemName];
+  } else {
+    orderCart[itemName] = { count: 1, unit: itemUnit };
+  }
+  renderDashboard();
 }
 
 function changeCartCount(itemName, amount) {
-if (!orderCart[itemName]) return;
-orderCart[itemName].count += amount;
-
-if (orderCart[itemName].count <= 0) {
-delete orderCart[itemName];
-}
-renderDashboard();
+  if (!orderCart[itemName]) return;
+  orderCart[itemName].count += amount;
+  if (orderCart[itemName].count <= 0) delete orderCart[itemName];
+  renderDashboard();
 }
 
 function removeTargetItem(itemName) {
-delete orderCart[itemName];
-renderDashboard();
+  delete orderCart[itemName];
+  renderDashboard();
 }
 
 function renderCartUI() {
-const cartListEl = document.getElementById('cartList');
-cartListEl.innerHTML = '';
+  const cartListEl = document.getElementById('cartList');
+  cartListEl.innerHTML = '';
 
-const keys = Object.keys(orderCart);
-if (keys.length === 0) {
-cartListEl.innerHTML = '<div style="color:#999; text-align:center; margin-top:40px; font-size:16px;">좌측 카드를 클릭하면<br>여기에 목록이 추가됩니다.</div>';
-return;
-}
+  const keys = Object.keys(orderCart);
+  if (keys.length === 0) {
+    cartListEl.innerHTML = '<div style="color:#999; text-align:center; margin-top:40px; font-size:16px;">좌측 카드를 클릭하면<br>여기에 목록이 추가됩니다.</div>';
+    return;
+  }
 
-keys.forEach(itemName => {
-const { count, unit } = orderCart[itemName];
-const itemDiv = document.createElement('div');
-itemDiv.className = 'cart-item';
-itemDiv.innerHTML = `
-                   <div class="cart-item-name">${itemName}<br><span class="cart-item-unit">${unit}</span></div>
-                   <div class="cart-counter">
-                       <button class="btn-cart-count" onclick="changeCartCount('${itemName}', -1)">-</button>
-                       <span class="cart-count-display">${count}</span>
-                       <button class="btn-cart-count" onclick="changeCartCount('${itemName}', 1)">+</button>
-                   </div>
-                   <button class="btn-delete" onclick="removeTargetItem('${itemName}')">취소</button>
-               `;
-cartListEl.appendChild(itemDiv);
-});
+  keys.forEach(itemName => {
+    const { count, unit } = orderCart[itemName];
+    const itemDiv = document.createElement('div');
+    itemDiv.className = 'cart-item';
+    itemDiv.innerHTML = `
+      <div class="cart-item-name">${itemName}<br><span class="cart-item-unit">${unit}</span></div>
+      <div class="cart-counter">
+        <button class="btn-cart-count" onclick="changeCartCount('${itemName}', -1)">-</button>
+        <span class="cart-count-display">${count}</span>
+        <button class="btn-cart-count" onclick="changeCartCount('${itemName}', 1)">+</button>
+      </div>
+      <button class="btn-delete" onclick="removeTargetItem('${itemName}')">취소</button>
+    `;
+    cartListEl.appendChild(itemDiv);
+  });
 }
 
 function clearCart() {
-if (confirm("현재 선택된 발주 목록을 모두 취소하시겠습니까?")) {
-orderCart = {};
-renderDashboard();
-}
+  if (confirm("현재 선택된 발주 목록을 모두 취소하시겠습니까?")) {
+    orderCart = {};
+    renderDashboard();
+  }
 }
 
 function copyOrder() {
-const keys = Object.keys(orderCart);
-if (keys.length === 0) {
-alert("발주할 상품 카드를 먼저 클릭해 주세요.");
-return;
-}
+  const keys = Object.keys(orderCart);
+  if (keys.length === 0) { alert("발주할 상품 카드를 먼저 클릭해 주세요."); return; }
 
-let messageText = "[식자재 발주 요청 드립니다.]\n\n";
-keys.forEach(itemName => {
-const { count, unit } = orderCart[itemName];
-messageText += `• ${itemName}: ${count}${unit}\n`;
-});
-messageText += "\n확인 후 배송 부탁드립니다. 감사합니다.";
+  let messageText = "[식자재 발주 요청 드립니다.]\n\n";
+  keys.forEach(itemName => {
+    const { count, unit } = orderCart[itemName];
+    messageText += `• ${itemName}: ${count}${unit}\n`;
+  });
+  messageText += "\n확인 후 배송 부탁드립니다. 감사합니다.";
 
-navigator.clipboard.writeText(messageText).then(() => {
-alert("발주 내용이 복사되었습니다!\n카카오톡에 붙여넣기 해주세요.");
-}).catch(() => {
-alert("복사 실패. 다시 시도해주세요.");
-});
+  navigator.clipboard.writeText(messageText).then(() => {
+    alert("발주 내용이 복사되었습니다!\n카카오톡에 붙여넣기 해주세요.");
+  }).catch(() => {
+    alert("복사 실패. 다시 시도해주세요.");
+  });
 }
 
 window.onload = renderDashboard;
