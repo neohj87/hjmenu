@@ -118,17 +118,13 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxOtoy0gmqi2IIu3Tp5i
 const categories = ["농산물", "수산물", "육류", "가공품", "기타"];
 const unitOptions = ["개", "kg", "g", "만원", "박스", "통", "마리", "묶음", "병", "포대", "봉지", "팩", "패트", "단", "판", "캔", "망", "리터"];
 
-let productData = {
-  "농산물": [], "수산물": [], "육류": [], "가공품": [], "기타": []
-};
+let productData = { "농산물": [], "수산물": [], "육류": [], "가공품": [], "기타": [] };
 let orderCart = {};
 
 // ── 동기화 상태 ────────────────────────────────────
 function setSyncStatus(state, text) {
-  const dot = document.getElementById('syncDot');
-  const txt = document.getElementById('syncText');
-  dot.className = 'sync-dot ' + state;
-  txt.textContent = text;
+  document.getElementById('syncDot').className = 'sync-dot ' + state;
+  document.getElementById('syncText').textContent = text;
 }
 
 // ── 구글 시트 불러오기 ──────────────────────────────
@@ -142,13 +138,11 @@ async function loadFromSheet() {
       localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
       setSyncStatus('ok', '구글 시트 연결됨');
     } else {
-      // 시트가 비어있으면 localStorage 데이터 사용
       const local = localStorage.getItem('momColumnsProducts_v2');
       if (local) productData = JSON.parse(local);
       setSyncStatus('ok', '로컬 데이터 로드됨');
     }
   } catch (e) {
-    // 오프라인이면 localStorage 사용
     const local = localStorage.getItem('momColumnsProducts_v2');
     if (local) productData = JSON.parse(local);
     setSyncStatus('error', '오프라인 - 로컬 데이터 사용 중');
@@ -156,17 +150,20 @@ async function loadFromSheet() {
   renderDashboard();
 }
 
-// ── 구글 시트 저장 ──────────────────────────────────
+// ── 구글 시트 저장 (GET 방식) ───────────────────────
 async function saveToSheet() {
   setSyncStatus('syncing', '저장 중...');
   localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
   try {
-    await fetch(SCRIPT_URL + '?action=save', {
-      method: 'POST',
-      body: JSON.stringify(productData)
-    });
-    setSyncStatus('ok', '저장 완료 ✓');
-    setTimeout(() => setSyncStatus('ok', '구글 시트 연결됨'), 2000);
+    const encoded = encodeURIComponent(JSON.stringify(productData));
+    const res = await fetch(SCRIPT_URL + '?action=save&data=' + encoded);
+    const result = await res.json();
+    if (result.ok) {
+      setSyncStatus('ok', '저장 완료 ✓');
+      setTimeout(() => setSyncStatus('ok', '구글 시트 연결됨'), 2000);
+    } else {
+      throw new Error('save failed');
+    }
   } catch (e) {
     setSyncStatus('error', '저장 실패 - 로컬에만 저장됨');
   }
@@ -214,31 +211,24 @@ function onSearch() {
 }
 
 function selectFromSearch(itemName, itemUnit) {
-  if (orderCart[itemName]) {
-    delete orderCart[itemName];
-  } else {
-    orderCart[itemName] = { count: 1, unit: itemUnit };
-  }
+  if (orderCart[itemName]) { delete orderCart[itemName]; }
+  else { orderCart[itemName] = { count: 1, unit: itemUnit }; }
   renderDashboard();
   onSearch();
 }
 
 function hideSearchAfterDelay() {
-  setTimeout(() => {
-    document.getElementById('searchResults').classList.remove('active');
-  }, 200);
+  setTimeout(() => document.getElementById('searchResults').classList.remove('active'), 200);
 }
 
 // ── 대시보드 ───────────────────────────────────────
 function renderDashboard() {
   const container = document.getElementById('columnsContainer');
   container.innerHTML = '';
-
   categories.forEach(category => {
     const column = document.createElement('div');
     column.className = 'category-column';
     const unitSelectHtml = unitOptions.map(u => `<option value="${u}">${u}</option>`).join('');
-
     let html = `
       <div class="column-title">${category}</div>
       <div class="inline-add-form">
@@ -248,7 +238,6 @@ function renderDashboard() {
       </div>
       <div class="card-list">
     `;
-
     const items = productData[category] || [];
     items.forEach(item => {
       const isSelected = orderCart[item.name] ? 'is-selected' : '';
@@ -260,12 +249,10 @@ function renderDashboard() {
         </div>
       `;
     });
-
     html += `</div>`;
     column.innerHTML = html;
     container.appendChild(column);
   });
-
   renderCartUI();
 }
 
@@ -275,15 +262,12 @@ function addItem(category) {
   const itemName = inputElement.value.trim();
   const itemUnit = unitElement.value;
   if (!itemName) return;
-
   let isDuplicate = false;
   categories.forEach(cat => {
     if ((productData[cat] || []).some(i => i.name === itemName)) isDuplicate = true;
   });
   if (isDuplicate) { alert("이미 등록된 품목입니다."); return; }
-
   productData[category].push({ name: itemName, unit: itemUnit });
-  localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
   inputElement.value = '';
   renderDashboard();
   inputElement.focus();
@@ -294,7 +278,6 @@ function deleteProductCard(event, category, itemName) {
   event.stopPropagation();
   if (confirm(`'${itemName}' 카드를 완전히 삭제하시겠습니까?`)) {
     productData[category] = productData[category].filter(i => i.name !== itemName);
-    localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
     if (orderCart[itemName]) delete orderCart[itemName];
     renderDashboard();
     saveToSheet();
@@ -302,11 +285,8 @@ function deleteProductCard(event, category, itemName) {
 }
 
 function clickProductCard(itemName, itemUnit) {
-  if (orderCart[itemName]) {
-    delete orderCart[itemName];
-  } else {
-    orderCart[itemName] = { count: 1, unit: itemUnit };
-  }
+  if (orderCart[itemName]) { delete orderCart[itemName]; }
+  else { orderCart[itemName] = { count: 1, unit: itemUnit }; }
   renderDashboard();
 }
 
@@ -328,7 +308,6 @@ function startDirectInput(itemName) {
   const span = document.getElementById(`count-display-${safeId}`);
   if (!span) return;
   const current = orderCart[itemName] ? orderCart[itemName].count : 1;
-
   const input = document.createElement('input');
   input.type = 'number';
   input.className = 'cart-count-input';
@@ -358,13 +337,11 @@ function commitDirectInput(itemName, value) {
 function renderCartUI() {
   const cartListEl = document.getElementById('cartList');
   cartListEl.innerHTML = '';
-
   const keys = Object.keys(orderCart);
   if (keys.length === 0) {
     cartListEl.innerHTML = '<div style="color:#999; text-align:center; margin-top:40px; font-size:16px;">좌측 카드를 클릭하면<br>여기에 목록이 추가됩니다.</div>';
     return;
   }
-
   keys.forEach(itemName => {
     const { count, unit } = orderCart[itemName];
     const safeId = itemName.replace(/[^a-zA-Z0-9가-힣]/g, '_');
@@ -393,14 +370,12 @@ function clearCart() {
 function copyOrder() {
   const keys = Object.keys(orderCart);
   if (keys.length === 0) { alert("발주할 상품 카드를 먼저 클릭해 주세요."); return; }
-
   let messageText = "[식자재 발주 요청 드립니다.]\n\n";
   keys.forEach(itemName => {
     const { count, unit } = orderCart[itemName];
     messageText += `• ${itemName}: ${count}${unit}\n`;
   });
   messageText += "\n확인 후 배송 부탁드립니다. 감사합니다.";
-
   navigator.clipboard.writeText(messageText).then(() => {
     alert("발주 내용이 복사되었습니다!\n카카오톡에 붙여넣기 해주세요.");
   }).catch(() => {
