@@ -25,6 +25,16 @@ body { margin: 0; padding: 20px; background-color: #f0f4f8; display: flex; flex-
 .search-result-check { color: #4a90e2; font-size: 16px; margin-left: 8px; }
 .search-empty { padding: 18px 16px; color: #aaa; text-align: center; font-size: 14px; }
 
+.sync-bar { display: flex; align-items: center; gap: 10px; flex-shrink: 0; font-size: 13px; color: #888; }
+.sync-status { display: flex; align-items: center; gap: 5px; }
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #a0aec0; }
+.sync-dot.syncing { background: #f1c40f; animation: pulse 1s infinite; }
+.sync-dot.ok { background: #2ecc71; }
+.sync-dot.error { background: #e74c3c; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+.btn-sync { background: #4a90e2; color: white; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; }
+.btn-sync:hover { background: #357abd; }
+
 .main-area { display: flex; gap: 20px; flex: 1; overflow: hidden; }
 .dashboard-container { flex: 3.5; display: flex; gap: 15px; height: 100%; overflow-x: auto; }
 
@@ -63,20 +73,9 @@ body { margin: 0; padding: 20px; background-color: #f0f4f8; display: flex; flex-
 
 .cart-counter { display: flex; align-items: center; gap: 5px; margin-right: 6px; }
 .btn-cart-count { width: clamp(26px, 2vw, 32px); height: clamp(26px, 2vw, 32px); font-size: clamp(14px, 1.2vw, 18px); font-weight: bold; border: none; background: #edf2f7; border-radius: 4px; cursor: pointer; }
-
-/* 수량 직접입력 */
-.cart-count-display {
-  font-size: clamp(14px, 1.2vw, 18px); font-weight: bold;
-  min-width: 20px; text-align: center;
-  cursor: pointer; border-radius: 4px; padding: 2px 4px;
-  transition: background 0.15s;
-}
+.cart-count-display { font-size: clamp(14px, 1.2vw, 18px); font-weight: bold; min-width: 20px; text-align: center; cursor: pointer; border-radius: 4px; padding: 2px 4px; transition: background 0.15s; }
 .cart-count-display:hover { background: #dbeafe; }
-.cart-count-input {
-  width: 52px; font-size: clamp(14px, 1.2vw, 18px); font-weight: bold;
-  text-align: center; border: 2px solid #4a90e2; border-radius: 4px;
-  padding: 2px 4px; outline: none;
-}
+.cart-count-input { width: 52px; font-size: clamp(14px, 1.2vw, 18px); font-weight: bold; text-align: center; border: 2px solid #4a90e2; border-radius: 4px; padding: 2px 4px; outline: none; }
 
 .btn-delete { background: #ff4d4f; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-size: clamp(12px, 0.9vw, 14px); }
 
@@ -93,9 +92,16 @@ body { margin: 0; padding: 20px; background-color: #f0f4f8; display: flex; flex-
   <div class="search-results" id="searchResults"></div>
 </div>
 
+<div class="sync-bar">
+  <div class="sync-status">
+    <div class="sync-dot" id="syncDot"></div>
+    <span id="syncText">구글 시트 연결 중...</span>
+  </div>
+  <button class="btn-sync" onclick="saveToSheet()">☁️ 저장</button>
+</div>
+
 <div class="main-area">
   <div class="dashboard-container" id="columnsContainer"></div>
-
   <div class="cart-container">
     <div class="cart-title">선택된 발주 목록</div>
     <div class="cart-list" id="cartList"></div>
@@ -107,13 +113,64 @@ body { margin: 0; padding: 20px; background-color: #f0f4f8; display: flex; flex-
 </div>
 
 <script>
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxOtoy0gmqi2IIu3Tp5iJbu4GNK08pnddKdjgQf9Pz3Rj8cctknu0FJkWBOHgoiCLdV/exec';
+
 const categories = ["농산물", "수산물", "육류", "가공품", "기타"];
 const unitOptions = ["개", "kg", "g", "만원", "박스", "통", "마리", "묶음", "병", "포대", "봉지", "팩", "패트", "단", "판", "캔", "망", "리터"];
 
-let productData = JSON.parse(localStorage.getItem('momColumnsProducts_v2')) || {
+let productData = {
   "농산물": [], "수산물": [], "육류": [], "가공품": [], "기타": []
 };
 let orderCart = {};
+
+// ── 동기화 상태 ────────────────────────────────────
+function setSyncStatus(state, text) {
+  const dot = document.getElementById('syncDot');
+  const txt = document.getElementById('syncText');
+  dot.className = 'sync-dot ' + state;
+  txt.textContent = text;
+}
+
+// ── 구글 시트 불러오기 ──────────────────────────────
+async function loadFromSheet() {
+  setSyncStatus('syncing', '불러오는 중...');
+  try {
+    const res = await fetch(SCRIPT_URL + '?action=load');
+    const data = await res.json();
+    if (data && data["농산물"] !== undefined) {
+      productData = data;
+      localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
+      setSyncStatus('ok', '구글 시트 연결됨');
+    } else {
+      // 시트가 비어있으면 localStorage 데이터 사용
+      const local = localStorage.getItem('momColumnsProducts_v2');
+      if (local) productData = JSON.parse(local);
+      setSyncStatus('ok', '로컬 데이터 로드됨');
+    }
+  } catch (e) {
+    // 오프라인이면 localStorage 사용
+    const local = localStorage.getItem('momColumnsProducts_v2');
+    if (local) productData = JSON.parse(local);
+    setSyncStatus('error', '오프라인 - 로컬 데이터 사용 중');
+  }
+  renderDashboard();
+}
+
+// ── 구글 시트 저장 ──────────────────────────────────
+async function saveToSheet() {
+  setSyncStatus('syncing', '저장 중...');
+  localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
+  try {
+    await fetch(SCRIPT_URL + '?action=save', {
+      method: 'POST',
+      body: JSON.stringify(productData)
+    });
+    setSyncStatus('ok', '저장 완료 ✓');
+    setTimeout(() => setSyncStatus('ok', '구글 시트 연결됨'), 2000);
+  } catch (e) {
+    setSyncStatus('error', '저장 실패 - 로컬에만 저장됨');
+  }
+}
 
 // ── 검색 ──────────────────────────────────────────
 function getAllItems() {
@@ -230,6 +287,7 @@ function addItem(category) {
   inputElement.value = '';
   renderDashboard();
   inputElement.focus();
+  saveToSheet();
 }
 
 function deleteProductCard(event, category, itemName) {
@@ -239,6 +297,7 @@ function deleteProductCard(event, category, itemName) {
     localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
     if (orderCart[itemName]) delete orderCart[itemName];
     renderDashboard();
+    saveToSheet();
   }
 }
 
@@ -264,9 +323,9 @@ function removeTargetItem(itemName) {
   renderDashboard();
 }
 
-// ── 수량 직접입력 ───────────────────────────────────
 function startDirectInput(itemName) {
-  const span = document.getElementById(`count-display-${CSS.escape(itemName)}`);
+  const safeId = itemName.replace(/[^a-zA-Z0-9가-힣]/g, '_');
+  const span = document.getElementById(`count-display-${safeId}`);
   if (!span) return;
   const current = orderCart[itemName] ? orderCart[itemName].count : 1;
 
@@ -276,13 +335,11 @@ function startDirectInput(itemName) {
   input.value = current;
   input.step = '0.1';
   input.min = '0.1';
-
   input.onblur = () => commitDirectInput(itemName, input.value);
   input.onkeydown = (e) => {
     if (e.key === 'Enter') input.blur();
     if (e.key === 'Escape') renderDashboard();
   };
-
   span.replaceWith(input);
   input.focus();
   input.select();
@@ -291,16 +348,13 @@ function startDirectInput(itemName) {
 function commitDirectInput(itemName, value) {
   const num = parseFloat(value);
   if (!isNaN(num) && num > 0) {
-    if (orderCart[itemName]) {
-      orderCart[itemName].count = Math.round(num * 10) / 10;
-    }
+    if (orderCart[itemName]) orderCart[itemName].count = Math.round(num * 10) / 10;
   } else if (!isNaN(num) && num <= 0) {
     delete orderCart[itemName];
   }
   renderDashboard();
 }
 
-// ── 장바구니 UI ────────────────────────────────────
 function renderCartUI() {
   const cartListEl = document.getElementById('cartList');
   cartListEl.innerHTML = '';
@@ -313,16 +367,14 @@ function renderCartUI() {
 
   keys.forEach(itemName => {
     const { count, unit } = orderCart[itemName];
-    const displayCount = Number.isInteger(count) ? count : count;
     const safeId = itemName.replace(/[^a-zA-Z0-9가-힣]/g, '_');
-
     const itemDiv = document.createElement('div');
     itemDiv.className = 'cart-item';
     itemDiv.innerHTML = `
       <div class="cart-item-name">${itemName}<br><span class="cart-item-unit">${unit}</span></div>
       <div class="cart-counter">
         <button class="btn-cart-count" onclick="changeCartCount('${itemName}', -0.5)">-</button>
-        <span class="cart-count-display" id="count-display-${safeId}" onclick="startDirectInput('${itemName}')" title="클릭하면 직접 입력">${displayCount}</span>
+        <span class="cart-count-display" id="count-display-${safeId}" onclick="startDirectInput('${itemName}')" title="클릭하면 직접 입력">${count}</span>
         <button class="btn-cart-count" onclick="changeCartCount('${itemName}', 0.5)">+</button>
       </div>
       <button class="btn-delete" onclick="removeTargetItem('${itemName}')">취소</button>
@@ -356,7 +408,7 @@ function copyOrder() {
   });
 }
 
-window.onload = renderDashboard;
+window.onload = loadFromSheet;
 </script>
 </body>
 </html>
