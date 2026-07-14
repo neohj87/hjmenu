@@ -113,7 +113,8 @@ body { margin: 0; padding: 20px; background-color: #f0f4f8; display: flex; flex-
 </div>
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxOtoy0gmqi2IIu3Tp5iJbu4GNK08pnddKdjgQf9Pz3Rj8cctknu0FJkWBOHgoiCLdV/exec';
+const SUPABASE_URL = 'https://dxuokbachsrrxcndhfbq.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4dW9rYmFjaHNycnhjbmRoZmJxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMDgyMTUsImV4cCI6MjA5OTU4NDIxNX0.nJ-Y7ztb8eHpMLK-YyXf-T7-V2CRIZAExlq2WXsBHA8';
 
 const categories = ["농산물", "수산물", "육류", "가공품", "기타"];
 const unitOptions = ["개", "kg", "g", "만원", "박스", "통", "마리", "묶음", "병", "포대", "봉지", "팩", "패트", "단", "판", "캔", "망", "리터"];
@@ -127,16 +128,21 @@ function setSyncStatus(state, text) {
   document.getElementById('syncText').textContent = text;
 }
 
-// ── 구글 시트 불러오기 ──────────────────────────────
+// ── Supabase 불러오기 ──────────────────────────────
 async function loadFromSheet() {
   setSyncStatus('syncing', '불러오는 중...');
   try {
-    const res = await fetch(SCRIPT_URL + '?action=load');
-    const data = await res.json();
-    if (data && data["농산물"] !== undefined) {
-      productData = data;
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/product_data?id=eq.1&select=data`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY
+      }
+    });
+    const rows = await res.json();
+    if (rows && rows.length > 0 && rows[0].data && rows[0].data["농산물"] !== undefined) {
+      productData = rows[0].data;
       localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
-      setSyncStatus('ok', '구글 시트 연결됨');
+      setSyncStatus('ok', 'Supabase 연결됨');
     } else {
       const local = localStorage.getItem('momColumnsProducts_v2');
       if (local) productData = JSON.parse(local);
@@ -150,20 +156,27 @@ async function loadFromSheet() {
   renderDashboard();
 }
 
-// ── 구글 시트 저장 (no-cors POST) ──────────────────
+// ── Supabase 저장 ───────────────────────────────────
 async function saveToSheet() {
   setSyncStatus('syncing', '저장 중...');
   localStorage.setItem('momColumnsProducts_v2', JSON.stringify(productData));
   try {
-    await fetch(SCRIPT_URL + '?action=save', {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(productData)
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/product_data?id=eq.1`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ data: productData })
     });
-    // no-cors는 응답을 읽을 수 없으므로 요청 성공으로 간주
-    setSyncStatus('ok', '저장 완료 ✓');
-    setTimeout(() => setSyncStatus('ok', '구글 시트 연결됨'), 2000);
+    if (res.ok) {
+      setSyncStatus('ok', '저장 완료 ✓');
+      setTimeout(() => setSyncStatus('ok', 'Supabase 연결됨'), 2000);
+    } else {
+      throw new Error('save failed');
+    }
   } catch (e) {
     setSyncStatus('error', '저장 실패 - 로컬에만 저장됨');
   }
