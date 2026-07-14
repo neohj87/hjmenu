@@ -26,7 +26,6 @@ body { margin: 0; padding: 20px; background-color: #f0f4f8; display: flex; flex-
 .search-empty { padding: 18px 16px; color: #aaa; text-align: center; font-size: 14px; }
 
 .main-area { display: flex; gap: 20px; flex: 1; overflow: hidden; }
-
 .dashboard-container { flex: 3.5; display: flex; gap: 15px; height: 100%; overflow-x: auto; }
 
 .category-column { flex: 1; min-width: 160px; background: white; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 6px solid #4a90e2; }
@@ -64,7 +63,20 @@ body { margin: 0; padding: 20px; background-color: #f0f4f8; display: flex; flex-
 
 .cart-counter { display: flex; align-items: center; gap: 5px; margin-right: 6px; }
 .btn-cart-count { width: clamp(26px, 2vw, 32px); height: clamp(26px, 2vw, 32px); font-size: clamp(14px, 1.2vw, 18px); font-weight: bold; border: none; background: #edf2f7; border-radius: 4px; cursor: pointer; }
-.cart-count-display { font-size: clamp(14px, 1.2vw, 18px); font-weight: bold; min-width: 20px; text-align: center; }
+
+/* 수량 직접입력 */
+.cart-count-display {
+  font-size: clamp(14px, 1.2vw, 18px); font-weight: bold;
+  min-width: 20px; text-align: center;
+  cursor: pointer; border-radius: 4px; padding: 2px 4px;
+  transition: background 0.15s;
+}
+.cart-count-display:hover { background: #dbeafe; }
+.cart-count-input {
+  width: 52px; font-size: clamp(14px, 1.2vw, 18px); font-weight: bold;
+  text-align: center; border: 2px solid #4a90e2; border-radius: 4px;
+  padding: 2px 4px; outline: none;
+}
 
 .btn-delete { background: #ff4d4f; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-size: clamp(12px, 0.9vw, 14px); }
 
@@ -76,13 +88,11 @@ body { margin: 0; padding: 20px; background-color: #f0f4f8; display: flex; flex-
 </head>
 <body>
 
-<!-- 검색바 -->
 <div class="search-bar-wrap">
   <input type="text" id="searchInput" placeholder="🔍 품목 검색... (한 글자만 입력해도 찾아줍니다)" oninput="onSearch()" onblur="hideSearchAfterDelay()" autocomplete="off">
   <div class="search-results" id="searchResults"></div>
 </div>
 
-<!-- 메인 영역 -->
 <div class="main-area">
   <div class="dashboard-container" id="columnsContainer"></div>
 
@@ -103,7 +113,6 @@ const unitOptions = ["개", "kg", "g", "만원", "박스", "통", "마리", "묶
 let productData = JSON.parse(localStorage.getItem('momColumnsProducts_v2')) || {
   "농산물": [], "수산물": [], "육류": [], "가공품": [], "기타": []
 };
-
 let orderCart = {};
 
 // ── 검색 ──────────────────────────────────────────
@@ -120,7 +129,6 @@ function getAllItems() {
 function onSearch() {
   const query = document.getElementById('searchInput').value.trim();
   const resultsEl = document.getElementById('searchResults');
-
   if (!query) { resultsEl.classList.remove('active'); return; }
 
   const matched = getAllItems().filter(item => item.name.includes(query));
@@ -155,7 +163,7 @@ function selectFromSearch(itemName, itemUnit) {
     orderCart[itemName] = { count: 1, unit: itemUnit };
   }
   renderDashboard();
-  onSearch(); // 검색 결과 체크 상태 갱신
+  onSearch();
 }
 
 function hideSearchAfterDelay() {
@@ -172,7 +180,6 @@ function renderDashboard() {
   categories.forEach(category => {
     const column = document.createElement('div');
     column.className = 'category-column';
-
     const unitSelectHtml = unitOptions.map(u => `<option value="${u}">${u}</option>`).join('');
 
     let html = `
@@ -210,14 +217,12 @@ function addItem(category) {
   const unitElement = document.getElementById(`unit-${category}`);
   const itemName = inputElement.value.trim();
   const itemUnit = unitElement.value;
-
   if (!itemName) return;
 
   let isDuplicate = false;
   categories.forEach(cat => {
     if ((productData[cat] || []).some(i => i.name === itemName)) isDuplicate = true;
   });
-
   if (isDuplicate) { alert("이미 등록된 품목입니다."); return; }
 
   productData[category].push({ name: itemName, unit: itemUnit });
@@ -248,8 +253,9 @@ function clickProductCard(itemName, itemUnit) {
 
 function changeCartCount(itemName, amount) {
   if (!orderCart[itemName]) return;
-  orderCart[itemName].count += amount;
-  if (orderCart[itemName].count <= 0) delete orderCart[itemName];
+  const newVal = Math.round((orderCart[itemName].count + amount) * 10) / 10;
+  if (newVal <= 0) { delete orderCart[itemName]; }
+  else { orderCart[itemName].count = newVal; }
   renderDashboard();
 }
 
@@ -258,6 +264,43 @@ function removeTargetItem(itemName) {
   renderDashboard();
 }
 
+// ── 수량 직접입력 ───────────────────────────────────
+function startDirectInput(itemName) {
+  const span = document.getElementById(`count-display-${CSS.escape(itemName)}`);
+  if (!span) return;
+  const current = orderCart[itemName] ? orderCart[itemName].count : 1;
+
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.className = 'cart-count-input';
+  input.value = current;
+  input.step = '0.1';
+  input.min = '0.1';
+
+  input.onblur = () => commitDirectInput(itemName, input.value);
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') renderDashboard();
+  };
+
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+function commitDirectInput(itemName, value) {
+  const num = parseFloat(value);
+  if (!isNaN(num) && num > 0) {
+    if (orderCart[itemName]) {
+      orderCart[itemName].count = Math.round(num * 10) / 10;
+    }
+  } else if (!isNaN(num) && num <= 0) {
+    delete orderCart[itemName];
+  }
+  renderDashboard();
+}
+
+// ── 장바구니 UI ────────────────────────────────────
 function renderCartUI() {
   const cartListEl = document.getElementById('cartList');
   cartListEl.innerHTML = '';
@@ -270,14 +313,17 @@ function renderCartUI() {
 
   keys.forEach(itemName => {
     const { count, unit } = orderCart[itemName];
+    const displayCount = Number.isInteger(count) ? count : count;
+    const safeId = itemName.replace(/[^a-zA-Z0-9가-힣]/g, '_');
+
     const itemDiv = document.createElement('div');
     itemDiv.className = 'cart-item';
     itemDiv.innerHTML = `
       <div class="cart-item-name">${itemName}<br><span class="cart-item-unit">${unit}</span></div>
       <div class="cart-counter">
-        <button class="btn-cart-count" onclick="changeCartCount('${itemName}', -1)">-</button>
-        <span class="cart-count-display">${count}</span>
-        <button class="btn-cart-count" onclick="changeCartCount('${itemName}', 1)">+</button>
+        <button class="btn-cart-count" onclick="changeCartCount('${itemName}', -0.5)">-</button>
+        <span class="cart-count-display" id="count-display-${safeId}" onclick="startDirectInput('${itemName}')" title="클릭하면 직접 입력">${displayCount}</span>
+        <button class="btn-cart-count" onclick="changeCartCount('${itemName}', 0.5)">+</button>
       </div>
       <button class="btn-delete" onclick="removeTargetItem('${itemName}')">취소</button>
     `;
